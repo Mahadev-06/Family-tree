@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AncestryFlow - Family Tree</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/style.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#4F46E5',
+              secondary: '#10B981',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* React Flow base styles override */
+      .react-flow__node {
+        border: none;
+        background: transparent;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "reactflow/": "https://aistudiocdn.com/reactflow@^11.11.4/",
+    "reactflow": "https://aistudiocdn.com/reactflow@^11.11.4",
+    "dagre": "https://aistudiocdn.com/dagre@^0.8.5"
+  }
+}
+</script>
+</head>
+  <body class="bg-slate-50 text-slate-900 overflow-hidden h-screen w-screen">
+    <div id="root" class="h-full w-full"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

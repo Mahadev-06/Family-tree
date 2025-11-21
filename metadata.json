@@ -1,0 +1,8 @@
+{
+  "name": "AncestryFlow",
+  "description": "A modern, interactive family tree application with shortest-path relationship calculation.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
