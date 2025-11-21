@@ -43,6 +43,43 @@ const RELATIONSHIP_OPTIONS: RelationshipOption[] = [
   { id: 'CUSTOM', label: 'Custom...', type: AddRelationshipType.CUSTOM, gender: null },
 ];
 
+const resizeAndConvertToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const MAX_SIZE = 600; // Resize to max 600px to save space
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7)); // Compress to 70% quality JPEG
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 export const AddPersonModal: React.FC<AddPersonModalProps> = ({ 
   onClose, 
   onAdd, 
@@ -73,6 +110,7 @@ export const AddPersonModal: React.FC<AddPersonModalProps> = ({
 
   // Delete confirmation state
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -115,43 +153,52 @@ export const AddPersonModal: React.FC<AddPersonModalProps> = ({
     setCreateUnknownParent(false);
   }, [relatedTo]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
     let photoUrl = personToEdit?.photoUrl || `https://ui-avatars.com/api/?name=${firstName}+${lastName}&background=random`;
     
-    if (fileInputRef.current?.files?.[0]) {
-      photoUrl = URL.createObjectURL(fileInputRef.current.files[0]);
-    }
+    try {
+      if (fileInputRef.current?.files?.[0]) {
+        // Convert to Base64 for persistence
+        photoUrl = await resizeAndConvertToBase64(fileInputRef.current.files[0]);
+      }
 
-    const personData = {
-      firstName,
-      lastName,
-      gender,
-      birthDate,
-      bio,
-      photoUrl
-    };
+      const personData = {
+        firstName,
+        lastName,
+        gender,
+        birthDate,
+        bio,
+        photoUrl
+      };
 
-    if (personToEdit && onEdit) {
-      onEdit({
-        ...personToEdit,
-        ...personData
-      });
-    } else {
-      let finalRelationType = relationType;
-      let finalLabel = undefined;
+      if (personToEdit && onEdit) {
+        onEdit({
+          ...personToEdit,
+          ...personData
+        });
+      } else {
+        let finalRelationType = relationType;
+        let finalLabel = undefined;
 
-      if (relationType === AddRelationshipType.CUSTOM) {
-        finalRelationType = customStructure;
-        finalLabel = customLabel;
+        if (relationType === AddRelationshipType.CUSTOM) {
+          finalRelationType = customStructure;
+          finalLabel = customLabel;
+        }
+        
+        // If first person, relatedTo might be empty, which is fine
+        onAdd(personData, relatedTo, finalRelationType, finalLabel, createUnknownParent);
       }
       
-      // If first person, relatedTo might be empty, which is fine
-      onAdd(personData, relatedTo, finalRelationType, finalLabel, createUnknownParent);
+      onClose();
+    } catch (error) {
+      console.error("Error saving person:", error);
+      alert("Failed to save person. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-    
-    onClose();
   };
 
   // Handle Relationship Role Change
@@ -356,6 +403,7 @@ export const AddPersonModal: React.FC<AddPersonModalProps> = ({
           <div>
              <label className="block text-xs font-medium text-slate-700">Photo</label>
              <input ref={fileInputRef} type="file" accept="image/*" className="mt-1 w-full text-sm" />
+             <p className="text-[10px] text-slate-500 mt-1">Images are saved locally in your browser.</p>
           </div>
 
           <div>
@@ -401,7 +449,12 @@ export const AddPersonModal: React.FC<AddPersonModalProps> = ({
 
                  <div className="flex space-x-3">
                     <button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded text-sm font-medium">Cancel</button>
-                    <button type="submit" className="px-4 py-2 bg-primary text-white rounded hover:bg-indigo-700 text-sm font-medium">
+                    <button 
+                      type="submit" 
+                      disabled={isLoading}
+                      className={`px-4 py-2 bg-primary text-white rounded hover:bg-indigo-700 text-sm font-medium flex items-center ${isLoading ? 'opacity-70 cursor-wait' : ''}`}
+                    >
+                      {isLoading && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
                       {isEditing ? 'Save Changes' : 'Add Person'}
                     </button>
                  </div>

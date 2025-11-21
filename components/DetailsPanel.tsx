@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Person, Relationship } from '../types';
 import { getImmediateFamily, findRelationshipPath, RelatedPerson } from '../services/relationshipService';
@@ -169,13 +170,12 @@ export const DetailsPanel: React.FC<DetailsPanelProps> = ({
                 member={p} 
                 role="Sibling" 
                 onSelect={onSelectPerson} 
-                // Siblings don't have a direct single relationship to edit from here
               />
             ))}
           </div>
         </div>
 
-        <div className="pt-6 border-t border-slate-100">
+        <div className="mt-6 border-2 border-blue-400 rounded-lg p-4">
           <h3 className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Find Relationship</h3>
           <select 
             className="w-full p-2 text-sm border border-slate-300 rounded-md mb-3 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"

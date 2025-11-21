@@ -1,9 +1,8 @@
-
 import { Edge, Node, Position } from 'reactflow';
 import * as dagre from 'dagre';
 import { Person, Relationship, RelationshipType } from '../types';
 
-const NODE_WIDTH = 180;
+const NODE_WIDTH = 200;
 const NODE_HEIGHT = 100;
 
 export const getLayoutedElements = (nodes: Node[], edges: Edge[]) => {

@@ -1,32 +1,43 @@
-/**
- * FIREBASE CONFIGURATION
- * 
- * This file is ready for production use. Uncomment the code below
- * and provide valid environment variables in .env to enable persistence.
- */
 
-/*
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
 
+// Check if API key is present in environment variables
+const env = (import.meta as any).env;
+const apiKey = env?.VITE_FIREBASE_API_KEY;
+
+export const isFirebaseConfigured = !!apiKey && apiKey.length > 0;
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: env?.VITE_FIREBASE_API_KEY,
+  authDomain: env?.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: env?.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: env?.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: env?.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: env?.VITE_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const auth = getAuth(app);
-*/
+let app;
+let db: any;
+let auth: any;
 
-// Mock export to prevent build errors if this file is imported but not configured
-export const db = {}; 
-export const storage = {};
-export const auth = {};
+if (isFirebaseConfigured) {
+  try {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+    console.log("Firebase initialized successfully");
+  } catch (error) {
+    console.error("Firebase initialization error:", error);
+    // Fallback to ensure app doesn't crash if keys are invalid
+    db = null;
+    auth = null;
+  }
+} else {
+  console.log("Firebase credentials missing. Running in Local Mode.");
+  db = null;
+  auth = null;
+}
+
+export { db, auth };

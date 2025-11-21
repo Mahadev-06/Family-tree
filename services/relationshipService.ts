@@ -1,5 +1,5 @@
 
-import { Person, Relationship, RelationshipType, PathResult } from '../types';
+import { Person, Relationship, RelationshipType, PathResult, Gender } from '../types';
 
 export interface RelatedPerson {
   person: Person;
@@ -166,15 +166,43 @@ export const findRelationshipPath = (
   return null; // No connection found
 };
 
+// Helper for gendered terms
+const getGenderedTerm = (base: string, gender: Gender): string => {
+  switch (base) {
+    case "Sibling": return gender === Gender.MALE ? "Brother" : gender === Gender.FEMALE ? "Sister" : "Sibling";
+    case "Parent": return gender === Gender.MALE ? "Father" : gender === Gender.FEMALE ? "Mother" : "Parent";
+    case "Child": return gender === Gender.MALE ? "Son" : gender === Gender.FEMALE ? "Daughter" : "Child";
+    case "Grandparent": return gender === Gender.MALE ? "Grandfather" : gender === Gender.FEMALE ? "Grandmother" : "Grandparent";
+    case "Grandchild": return gender === Gender.MALE ? "Grandson" : gender === Gender.FEMALE ? "Granddaughter" : "Grandchild";
+    case "Great-Grandparent": return gender === Gender.MALE ? "Great-Grandfather" : gender === Gender.FEMALE ? "Great-Grandmother" : "Great-Grandparent";
+    case "Great-Grandchild": return gender === Gender.MALE ? "Great-Grandson" : gender === Gender.FEMALE ? "Great-Granddaughter" : "Great-Grandchild";
+    case "Aunt/Uncle": return gender === Gender.MALE ? "Uncle" : gender === Gender.FEMALE ? "Aunt" : "Aunt/Uncle";
+    case "Niece/Nephew": return gender === Gender.MALE ? "Nephew" : gender === Gender.FEMALE ? "Niece" : "Niece/Nephew";
+    case "Great-Aunt/Uncle": return gender === Gender.MALE ? "Great-Uncle" : gender === Gender.FEMALE ? "Great-Aunt" : "Great-Aunt/Uncle";
+    case "Great-Niece/Nephew": return gender === Gender.MALE ? "Great-Nephew" : gender === Gender.FEMALE ? "Great-Niece" : "Great-Niece/Nephew";
+    case "Step-Parent": return gender === Gender.MALE ? "Step-Father" : gender === Gender.FEMALE ? "Step-Mother" : "Step-Parent";
+    case "Step-Child": return gender === Gender.MALE ? "Step-Son" : gender === Gender.FEMALE ? "Step-Daughter" : "Step-Child";
+    case "Spouse": return gender === Gender.MALE ? "Husband" : gender === Gender.FEMALE ? "Wife" : "Spouse";
+    case "Parent-in-Law": return gender === Gender.MALE ? "Father-in-Law" : gender === Gender.FEMALE ? "Mother-in-Law" : "Parent-in-Law";
+    case "Child-in-Law": return gender === Gender.MALE ? "Son-in-Law" : gender === Gender.FEMALE ? "Daughter-in-Law" : "Child-in-Law";
+    case "Brother/Sister-in-Law": return gender === Gender.MALE ? "Brother-in-Law" : gender === Gender.FEMALE ? "Sister-in-Law" : "Sibling-in-Law";
+    case "Aunt/Uncle-in-Law": return gender === Gender.MALE ? "Uncle-in-Law" : gender === Gender.FEMALE ? "Aunt-in-Law" : "Aunt/Uncle-in-Law";
+    default: return base;
+  }
+};
+
 const describePath = (path: string[], people: Person[], relationships: Relationship[]): PathResult => {
   if (path.length < 2) return { path, relationshipDescription: "Self" };
 
-  // Analyze the path steps to build a pattern string
-  // U = Up (Child -> Parent)
-  // D = Down (Parent -> Child)
-  // S = Spouse
-  let pattern = "";
+  // Determine target gender for correct terminology (Brother vs Sister, etc.)
+  const targetId = path[path.length - 1];
+  const targetPerson = people.find(p => p.id === targetId);
+  const targetGender = targetPerson?.gender || Gender.MALE; 
 
+  const getTerm = (base: string) => getGenderedTerm(base, targetGender);
+
+  // Build Pattern String (U=Up/Parent, D=Down/Child, S=Spouse)
+  let pattern = "";
   for (let i = 0; i < path.length - 1; i++) {
     const currentId = path[i];
     const nextId = path[i + 1];
@@ -199,58 +227,104 @@ const describePath = (path: string[], people: Person[], relationships: Relations
     }
   }
 
-  // Dictionary of common patterns
-  const descriptions: Record<string, string> = {
-    // Direct
-    "U": "Parent",
-    "D": "Child",
-    "S": "Spouse",
+  // --- Pattern Matching ---
+
+  // 1. Simple Direct Matches
+  if (pattern === "S") return { path, relationshipDescription: getTerm("Spouse") };
+  
+  // 2. Blood Relatives (Up... Down...)
+  // Regex: ^U*D*$ (U followed by D, including zero of either, but total length > 0)
+  const bloodMatch = pattern.match(/^(U*)(D*)$/);
+  
+  if (bloodMatch) {
+    const upCount = bloodMatch[1].length;
+    const downCount = bloodMatch[2].length;
+
+    // Direct Line Ascending (Parents, Grandparents...)
+    if (downCount === 0) {
+      if (upCount === 1) return { path, relationshipDescription: getTerm("Parent") };
+      if (upCount === 2) return { path, relationshipDescription: getTerm("Grandparent") };
+      if (upCount === 3) return { path, relationshipDescription: getTerm("Great-Grandparent") };
+      if (upCount > 3) return { path, relationshipDescription: `${"Great-".repeat(upCount - 2)}Grandparent` };
+    }
+
+    // Direct Line Descending (Children, Grandchildren...)
+    if (upCount === 0) {
+      if (downCount === 1) return { path, relationshipDescription: getTerm("Child") };
+      if (downCount === 2) return { path, relationshipDescription: getTerm("Grandchild") };
+      if (downCount === 3) return { path, relationshipDescription: getTerm("Great-Grandchild") };
+      if (downCount > 3) return { path, relationshipDescription: `${"Great-".repeat(downCount - 2)}Grandchild` };
+    }
+
+    // Siblings / Nieces / Nephews / Cousins (Up then Down)
+    if (upCount > 0 && downCount > 0) {
+      // Sibling (share 1 parent)
+      if (upCount === 1 && downCount === 1) return { path, relationshipDescription: getTerm("Sibling") };
+
+      // Niece/Nephew (Sibling's child)
+      if (upCount === 1 && downCount > 1) {
+        const greats = downCount - 2; // D=2 -> Niece, D=3 -> Great-Niece
+        if (greats === 0) return { path, relationshipDescription: getTerm("Niece/Nephew") };
+        return { path, relationshipDescription: getTerm("Great-Niece/Nephew") };
+      }
+
+      // Aunt/Uncle (Parent's sibling)
+      if (upCount > 1 && downCount === 1) {
+        const greats = upCount - 2; // U=2 -> Aunt, U=3 -> Great-Aunt
+        if (greats === 0) return { path, relationshipDescription: getTerm("Aunt/Uncle") };
+        return { path, relationshipDescription: getTerm("Great-Aunt/Uncle") };
+      }
+
+      // Cousins
+      // Degree = min(up, down) - 1.
+      // Removed = abs(up - down).
+      const degree = Math.min(upCount, downCount) - 1;
+      const removed = Math.abs(upCount - downCount);
+      
+      if (degree >= 1) {
+        const degreeStr = degree === 1 ? "First" : degree === 2 ? "Second" : degree === 3 ? "Third" : `${degree}th`;
+        const removedStr = removed === 0 ? "" : removed === 1 ? " Once Removed" : removed === 2 ? " Twice Removed" : ` ${removed} Times Removed`;
+        return { path, relationshipDescription: `${degreeStr} Cousin${removedStr}` };
+      }
+    }
+  }
+
+  // 3. In-Laws (involving S)
+  
+  // Spouse of Relative (ends with S) -> e.g. My Brother's Wife
+  if (pattern.endsWith("S")) {
+    const subPattern = pattern.slice(0, -1);
+    const bloodMatch = subPattern.match(/^(U*)(D*)$/);
     
-    // 2 Steps
-    "UD": "Sibling", // Up to parent, Down to sibling
-    "UU": "Grandparent",
-    "DD": "Grandchild",
-    "US": "Step-Parent", // Parent's spouse
-    "SD": "Step-Child", // Spouse's child
-    "SU": "Parent-in-Law", // Spouse's parent
-    "DS": "Child-in-Law", // Child's spouse
-
-    // 3 Steps
-    "UUU": "Great-Grandparent",
-    "DDD": "Great-Grandchild",
-    "UUD": "Aunt/Uncle", // Up to parent, Up to G-parent, Down to Uncle
-    "UDD": "Niece/Nephew", // Up to Parent, Down to Sibling, Down to Nephew
-    "UUS": "Grandparent-in-Law", // Grandparent's spouse (Step-Grandparent)
-    "SUD": "Brother/Sister-in-Law", // Spouse's sibling (Spouse -> Parent -> Child)
-    "UDS": "Brother/Sister-in-Law", // Sibling's spouse (Parent -> Child -> Spouse) - Note: Wait, UD is sibling. UDS is sibling's spouse.
-
-    // 4 Steps
-    "UUDD": "First Cousin", // Up to GP, Down to Aunt/Uncle, Down to Cousin
-    "UUUU": "Great-Great-Grandparent",
-  };
-
-  // Check exact match
-  if (descriptions[pattern]) {
-    return { path, relationshipDescription: descriptions[pattern] };
+    if (bloodMatch) {
+      const upCount = bloodMatch[1].length;
+      const downCount = bloodMatch[2].length;
+      
+      if (upCount === 0 && downCount === 1) return { path, relationshipDescription: getTerm("Child-in-Law") };
+      if (upCount === 1 && downCount === 1) return { path, relationshipDescription: getTerm("Brother/Sister-in-Law") }; // Sibling's spouse
+      if (upCount > 1 && downCount === 1) return { path, relationshipDescription: getTerm("Aunt/Uncle-in-Law") }; // Aunt's spouse
+    }
   }
 
-  // Heuristic matches for deeper patterns
-  if (pattern.match(/^U+$/)) {
-    const generations = pattern.length;
-    return { path, relationshipDescription: `${"Great-".repeat(generations - 2)}Grandparent` };
+  // Relative of Spouse (starts with S) -> e.g. My Wife's Brother
+  if (pattern.startsWith("S")) {
+    const subPattern = pattern.slice(1);
+    const bloodMatch = subPattern.match(/^(U*)(D*)$/);
+
+    if (bloodMatch) {
+      const upCount = bloodMatch[1].length;
+      const downCount = bloodMatch[2].length;
+      
+      if (upCount === 1 && downCount === 0) return { path, relationshipDescription: getTerm("Parent-in-Law") };
+      if (upCount === 1 && downCount === 1) return { path, relationshipDescription: getTerm("Brother/Sister-in-Law") }; // Spouse's sibling
+    }
   }
   
-  if (pattern.match(/^D+$/)) {
-     const generations = pattern.length;
-    return { path, relationshipDescription: `${"Great-".repeat(generations - 2)}Grandchild` };
-  }
+  // Step-Relatives (Parent -> Spouse -> Child) => U S D
+  if (pattern === "US") return { path, relationshipDescription: getTerm("Step-Parent") };
+  if (pattern === "SD") return { path, relationshipDescription: getTerm("Step-Child") }; 
+  if (pattern === "USD") return { path, relationshipDescription: "Step-Sibling" }; 
 
-  // Great Aunt/Uncle: U-U-U-D (Parent -> GP -> GGP -> Great Uncle)
-  if (pattern === "UUUD") return { path, relationshipDescription: "Great-Aunt/Uncle" };
-  
-  // Second Cousin: U-U-U-D-D-D (Common Great-Grandparent)
-  // This gets complex quickly. 
-
-  // Fallback: Human readable steps
+  // Fallback for very complex paths
   return { path, relationshipDescription: `${path.length - 1} degrees of separation` };
 };
